@@ -69,3 +69,9 @@ Local installations without a server key retain the encrypted filesystem ledger.
 Before an AI build, sign in, create a cloud project, save/reopen it on another browser, and check viewer/editor permissions with test accounts. Save a direct text change and confirm the private storage copy can be restored. Check Token usage loads successfully. Run an intentional small AI build only when ready to consume API credits. Later pushes to the connected production branch trigger Vercel deployments automatically.
 
 References: [Vercel Git deployments](https://vercel.com/docs/git), [Supabase private storage](https://supabase.com/docs/guides/storage/security/access-control).
+
+## Connection diagnostics
+
+Settings → Studio Supabase checks the workspace tables, private bucket configuration, and shared token ledger using read-only requests. Local token tracking is labelled Local storage; a missing server key on Vercel is labelled Setup required. A server key is needed to verify bucket privacy. These checks do not test a signed-in employee's write permissions or consume AI tokens.
+
+If the old “configure durable usage storage” message remains after adding the key, confirm that the GitHub repository contains `src/lib/shared-usage.ts`, then redeploy the latest commit. Set the variable on the same Vercel project and environment as the URL being opened (Production versus Preview). Changing environment settings alone does not update an existing deployment. The updated code names missing variables in the error message.

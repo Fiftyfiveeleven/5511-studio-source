@@ -1,0 +1,15 @@
+import {createClient} from '@supabase/supabase-js';
+export type HealthCheck={state:'ready'|'missing'|'error'|'unverified'|'local';message:string};
+export type WorkspaceStatus={database:HealthCheck;storage:HealthCheck;usage:HealthCheck;hosted:boolean};
+export async function workspaceStatus(token?:string):Promise<WorkspaceStatus>{
+ const url=process.env.NEXT_PUBLIC_SUPABASE_URL,publicKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,secret=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,hosted=!!process.env.VERCEL;
+ const missing:HealthCheck={state:'missing',message:'Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in the Studio server environment, then redeploy.'};
+ const result:WorkspaceStatus={hosted,database:missing,storage:{state:'unverified',message:'A server key is needed to verify the private bucket.'},usage:hosted?{state:'missing',message:'Add SUPABASE_SECRET_KEY in Vercel and redeploy to enable hosted builds.'}:{state:'local',message:'Using the local encrypted token ledger on this computer.'}};
+ if(!url)return result;
+ const options={auth:{persistSession:false,autoRefreshToken:false},global:{fetch:((input:RequestInfo|URL,init?:RequestInit)=>fetch(input,{...init,signal:AbortSignal.timeout(8000)})) as typeof fetch}};
+ const checks:Promise<void>[]=[];
+ if(publicKey&&!secret&&!token)result.database={state:'unverified',message:'Studio connection settings are present. Sign in to verify access to workspace tables, or configure the server key.'};
+ if(publicKey&&(secret||token))checks.push((async()=>{try{const db=createClient(url,secret||publicKey,{...options,global:{...options.global,...(!secret&&token?{headers:{Authorization:`Bearer ${token}`}}:{})}});for(const table of ['projects','revisions','project_access','project_drafts']){const {error}=await db.from(table).select('*',{head:true}).limit(0);if(error)throw error;}result.database={state:'ready',message:'Studio database is reachable and workspace tables are available. Sign in to access your projects.'};}catch{result.database={state:'error',message:'Cannot verify the workspace tables. Check the public URL/key, database migrations, and Supabase availability.'};}})());
+ if(secret){checks.push((async()=>{try{const db=createClient(url,secret,options);const {data,error}=await db.storage.getBucket('studio-projects');if(error||!data)throw error;if(data.public)throw new Error('Public bucket');result.storage={state:'ready',message:'The studio-projects bucket is reachable and private.'};}catch{result.storage={state:'error',message:'Cannot verify a private studio-projects bucket. Check the server key and storage migration.'};}})());checks.push((async()=>{try{const db=createClient(url,secret,options);const {error}=await db.from('studio_usage_ledgers').select('id',{head:true}).limit(0);if(error)throw error;result.usage={state:'ready',message:'Shared token ledger is reachable. Budget reservations use this database.'};}catch{result.usage={state:'error',message:'Shared token tracking is unavailable. Check SUPABASE_SECRET_KEY and the storage migration before building.'};}})());}
+ await Promise.all(checks);return result;
+}

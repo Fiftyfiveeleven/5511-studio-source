@@ -7,7 +7,7 @@ import {defaultLimits,type Limits,type TokenUsage,type UsageEntry,type UsageSumm
 export type StoredEntry=UsageEntry&{digest:string;result?:unknown;rawOutput?:string};
 type Ledger={limits:Limits;entries:StoredEntry[]};
 function location(key:string){
- if(process.env.VERCEL)throw new HttpError(503,'The Studio administrator must configure durable usage storage before enabling hosted builds.');
+ if(process.env.VERCEL){const missing=[!process.env.NEXT_PUBLIC_SUPABASE_URL?'NEXT_PUBLIC_SUPABASE_URL':null,!(process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY)?'SUPABASE_SECRET_KEY':null].filter(Boolean);throw new HttpError(503,`Hosted token tracking is not configured. Missing: ${missing.join(', ')||'shared storage connection'}. Add these in this Vercel project’s environment settings for the active deployment environment, then redeploy. Check Settings → Studio Supabase for connection status.`);}
  const root=process.env.STUDIO_USAGE_DIR||path.join(process.cwd(),'.studio','usage');
  return path.join(/*turbopackIgnore: true*/ root,createHash('sha256').update(key).digest('hex'));
 }

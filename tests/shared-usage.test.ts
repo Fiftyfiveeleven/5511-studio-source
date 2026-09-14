@@ -18,7 +18,7 @@ test('shared encrypted ledger resolves racing reservations and fails closed on d
  };
  try{
   const key='openai-test-secret';
-  const entry=():StoredEntry=>({id:randomUUID(),digest:randomUUID(),createdAt:new Date().toISOString(),status:'running',reservation:100,model:'test',projectId:randomUUID(),prompt:'Private prompt',reused:0} as StoredEntry);
+  const entry=():StoredEntry=>({id:randomUUID(),digest:randomUUID(),createdAt:new Date().toISOString(),status:'running',reservation:100,model:'test',projectId:randomUUID(),name:'Private prompt',usage:null,reused:0} as StoredEntry);
   const results=await Promise.allSettled([beginUsage(key,entry()),beginUsage(key,entry())]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
   assert.match(String((results.find(r=>r.status==='rejected') as PromiseRejectedResult).reason),/already running/);
@@ -28,6 +28,6 @@ test('shared encrypted ledger resolves racing reservations and fails closed on d
   assert.equal((await usageSummary(key)).entries[0].reused,2);
   failed=true;await assert.rejects(beginUsage(key,entry()),/unavailable/);
   delete process.env.SUPABASE_SECRET_KEY;delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-  await assert.rejects(beginUsage(key,entry()),/durable usage storage/);
+  await assert.rejects(beginUsage(key,entry()),/Missing: SUPABASE_SECRET_KEY/);
  }finally{globalThis.fetch=fetch;for(const n of names){if(old[n]===undefined)delete process.env[n];else process.env[n]=old[n]}}
 });

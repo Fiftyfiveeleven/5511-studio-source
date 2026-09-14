@@ -1,0 +1,12 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {browserDb} from '@/lib/supabase';
+import {Database} from 'lucide-react';
+import type {WorkspaceStatus,HealthCheck} from '@/lib/workspace-status';
+const labels:Record<HealthCheck['state'],string>={ready:'Connected',missing:'Setup required',error:'Needs attention',unverified:'Not verified',local:'Local storage'};
+export default function WorkspaceConnectionStatus(){
+ const [status,setStatus]=useState<WorkspaceStatus|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ async function refresh(){setBusy(true);setError('');setStatus(null);try{const session=await browserDb()?.auth.getSession();const token=session?.data.session?.access_token;const response=await fetch('/api/workspace-status',{cache:'no-store',headers:token?{Authorization:`Bearer ${token}`}:{}});if(!response.ok)throw new Error('Unable to check the Studio connection. Try again.');setStatus(await response.json());}catch{setError('Unable to check the Studio connection. Try again.');}finally{setBusy(false);}}
+ useEffect(()=>{void refresh()},[]);
+ return <section className="settings-card" aria-label="Studio Supabase status"><div className="settings-card-title"><Database size={27}/><div><h2>Studio Supabase</h2><p>Accounts, saved projects, private storage &amp; token tracking</p></div></div><p>This is the connection for Studio itself. Each app you build can have its own separate database.</p><div aria-live="polite">{busy&&<p>Checking connections…</p>}{status&&(['database','storage','usage'] as const).map(key=><div key={key} style={{padding:'16px 0',borderBottom:'1px solid var(--border)'}}><div style={{display:'flex',justifyContent:'space-between',gap:16}}><strong>{{database:'Workspace database',storage:'Private project storage',usage:'Token tracking'}[key]}</strong><span className={status[key].state==='ready'?'connection-ready':'connection-needed'}>{labels[status[key].state]}</span></div><p className="settings-help">{status[key].message}</p></div>)}{error&&<p className="settings-error" role="alert">{error}</p>}</div><button className="subtle-button" disabled={busy} onClick={()=>void refresh()}>{busy?'Checking…':'Check connection again'}</button><p className="settings-help">These checks read service status without creating projects or using OpenAI tokens. After changing Vercel environment variables, redeploy before checking again.</p></section>;
+}
