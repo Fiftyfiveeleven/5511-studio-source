@@ -1,0 +1,9 @@
+import {randomUUID} from 'node:crypto';
+import {authorize,ownedProject,failure,HttpError} from '@/lib/server';
+import {requireSameOrigin} from '@/lib/credentials';
+import {requireEditor} from '@/lib/project-access';
+import {jobsDb,finishJob} from '@/lib/job-store';
+import {checkRuntime,runtimeReady} from '@/lib/runtime-sandbox';
+import {isFullstack} from '@/lib/fullstack-project';
+export const maxDuration=300;
+export async function POST(request:Request,ctx:{params:Promise<{id:string}>}){let jobId:string|undefined;try{requireSameOrigin(request);const {db,user}=await authorize(request);const {id}=await ctx.params;const p=await ownedProject(db,id);await requireEditor(db,id,user.id);if(!runtimeReady())throw new HttpError(503,'Vercel Sandbox is not configured.');const {data:r}=await db.from('revisions').select('files').eq('id',p.current_revision_id).single();if(!r||!isFullstack(r.files))throw new HttpError(400,'A saved Next.js version is required.');const candidate=randomUUID();const {error}=await jobsDb().rpc('enqueue_studio_job',{p_job:{id:candidate,project_id:id,user_id:user.id,plan:{stages:[],goal:'Launch saved preview'},images:[],runtime:'nextjs',expected_revision:p.current_revision_id},p_ciphertext:'no-provider-credential'});if(error)throw new HttpError(429,'A job is active or the daily runtime limit has been reached.');jobId=candidate;const designChannel=randomUUID();const report=await checkRuntime(r.files,false,undefined,true,{channel:designChannel,origin:request.headers.get('origin')!});await finishJob(jobId,report.compiled?'completed':'failed',report.errors.join('; '),report);if(!report.previewUrl)throw new HttpError(422,report.errors.join('; ')||'Preview did not start.');return Response.json({...report,designChannel});}catch(e){if(jobId)await finishJob(jobId,'failed',(e as Error).message).catch(()=>{});return failure(e)}}

@@ -1,3 +1,5 @@
+import {githubConnectionSchema} from './github-connection';
+import {specificationSchema,buildPlanSchema} from './project-memory';
 import {validateArtifact} from './artifacts';
 import type {Project,Revision} from './types';
 type RecordData={project:Project;revisions:Revision[];pending?:{id:string;prompt:string;baseRevision:string|null;images?:import('./attachments').ImageAttachment[]};deployment?:{id:string;state:string;url:string}};
@@ -11,22 +13,24 @@ async function performWorkspace(path:string,method:string,body:any,send:Send){
  const record=(await read(id))[0];if(!record)throw new Error('Project not found in this browser.');
  if(action==='generate'){
   const current=record.revisions.find(r=>r.id===record.project.current_revision_id);const expected=record.project.current_revision_id;
-  const pending=record.pending&&record.pending.prompt===body.prompt&&record.pending.baseRevision===expected&&JSON.stringify(record.pending.images??[])===JSON.stringify(body.images??[])?record.pending:{id:crypto.randomUUID(),prompt:body.prompt,baseRevision:expected,images:body.images??[]};
+  if(body.expectedRevision!==undefined&&body.expectedRevision!==expected)throw new Error('The project changed. Reopen the plan before building.');
+  const pending=record.pending&&record.pending.prompt===body.prompt&&record.pending.baseRevision===expected&&JSON.stringify(record.pending.images??[])===JSON.stringify(body.images??[])?record.pending:{id:body.requestId??crypto.randomUUID(),prompt:body.prompt,baseRevision:expected,images:body.images??[]};
   record.pending=pending;await write(record,expected);
   let result;
-  try{result=await send('/api/build','POST',{requestId:pending.id,projectId:id,prompt:body.prompt,name:record.project.name,files:current?.files??[],previousSql:current?.sql??'',images:body.images??[],connected:!!record.project.supabase_url});}
+  try{result=await send('/api/build','POST',{requestId:pending.id,projectId:id,prompt:body.prompt,name:record.project.name,files:current?.files??[],previousSql:current?.sql??'',images:body.images??[],connected:!!record.project.supabase_url,specification:record.project.specification,buildId:body.buildId,budgetUsd:body.budgetUsd});}
   catch(error){try{const attempt=await send('/api/usage/'+pending.id);if(attempt.status==='failed'||attempt.status==='uncertain'){delete record.pending;await write(record,expected)}}catch{}throw error;}
   delete record.pending;
   const rev:Revision={id:crypto.randomUUID(),project_id:id,prompt:body.prompt,summary:result.summary,files:result.files,sql:result.sql,tokens:result.reused?0:result.tokens,requestId:result.requestId,usage:result.usage,model:result.model,reused:result.reused,created_at:new Date().toISOString()};
   record.revisions.unshift(rev);record.project={...record.project,name:result.name,current_revision_id:rev.id,updated_at:rev.created_at};
+  if(record.project.build_plan && record.project.build_plan.id===body.buildId){record.project.build_plan.stages=record.project.build_plan.stages.map(s=>s.id===body.requestId?{...s,status:'saved',revisionId:rev.id}:s);}
   await write(record,expected);return rev;
  }
  if(action==='edit'){
   const expected=body.expectedRevision;
   if(record.project.current_revision_id!==expected)throw new Error('This project changed. Reopen it before saving edits.');
-  const current=record.revisions.find(r=>r.id===expected);if(!current)throw new Error('Version not found.');
-  const artifact=validateArtifact({name:record.project.name,summary:'Text edited directly in the preview. No AI tokens used.',files:body.files,sql:current.sql});
-  const rev:Revision={id:crypto.randomUUID(),project_id:id,prompt:'Direct text edit',summary:artifact.summary,files:artifact.files,sql:artifact.sql,tokens:0,created_at:new Date().toISOString()};
+  const current=record.revisions.find(r=>r.id===expected);if(expected&&!current)throw new Error('Version not found.');
+  const artifact=validateArtifact({name:record.project.name,summary:'Saved without an AI request.',files:body.files,sql:body.sql??current?.sql??''});
+  const rev:Revision={id:crypto.randomUUID(),project_id:id,prompt:typeof body.message==='string'?body.message.slice(0,6000):'Direct design edit',summary:artifact.summary,files:artifact.files,sql:artifact.sql,tokens:0,created_at:new Date().toISOString()};
   record.revisions.unshift(rev);record.project={...record.project,current_revision_id:rev.id,updated_at:rev.created_at};await write(record,expected);return rev;
  }
  if(action==='deploy'){
@@ -37,6 +41,9 @@ async function performWorkspace(path:string,method:string,body:any,send:Send){
  }
  if(method==='PATCH'){
   const expected=record.project.current_revision_id;
+  if(body.github_connection!==undefined)record.project.github_connection=body.github_connection===null?null:githubConnectionSchema.parse(body.github_connection);
+  if(body.specification!==undefined)record.project.specification=specificationSchema.parse(body.specification);
+  if(body.build_plan!==undefined)record.project.build_plan=body.build_plan===null?null:buildPlanSchema.parse(body.build_plan);
   if(typeof body.name==='string'){const name=body.name.trim();if(!name||name.length>80)throw new Error('Use a project name between 1 and 80 characters.');record.project.name=name;}
   if(body.supabase_url!==undefined){const c=await send('/api/connection','POST',{url:body.supabase_url,key:body.supabase_key});record.project.supabase_url=c.url;record.project.supabase_key=c.key;}
   if(body.current_revision_id){if(!record.revisions.some(r=>r.id===body.current_revision_id))throw new Error('Version not found.');record.project.current_revision_id=body.current_revision_id;}
@@ -44,7 +51,8 @@ async function performWorkspace(path:string,method:string,body:any,send:Send){
  }
  if(record.pending&&method==='GET'){
   const pending=record.pending;
-  try{const completed=await send('/api/usage/'+pending.id);if(completed.status==='completed'&&completed.result&&record.project.current_revision_id===pending.baseRevision){const result=completed.result;const rev:Revision={id:crypto.randomUUID(),project_id:id,prompt:pending.prompt,summary:result.summary,files:result.files,sql:result.sql,tokens:result.tokens,requestId:result.requestId,usage:result.usage,model:result.model,created_at:new Date().toISOString()};record.revisions.unshift(rev);record.project={...record.project,name:result.name,current_revision_id:rev.id,updated_at:rev.created_at};delete record.pending;await write(record,pending.baseRevision)}}catch{}
+  try{const completed=await send('/api/usage/'+pending.id);if(completed.status==='completed'&&completed.result&&record.project.current_revision_id===pending.baseRevision){const result=completed.result;const rev:Revision={id:crypto.randomUUID(),project_id:id,prompt:pending.prompt,summary:result.summary,files:result.files,sql:result.sql,tokens:result.tokens,requestId:result.requestId,usage:result.usage,model:result.model,created_at:new Date().toISOString()};record.revisions.unshift(rev);record.project={...record.project,name:result.name,current_revision_id:rev.id,updated_at:rev.created_at};
+  if(record.project.build_plan){record.project.build_plan.stages=record.project.build_plan.stages.map(s=>s.id===pending.id?{...s,status:'saved',revisionId:rev.id}:s);}delete record.pending;await write(record,pending.baseRevision)}}catch{}
  }
  return record;
 }

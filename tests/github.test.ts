@@ -22,7 +22,7 @@ test('GitHub credentials stay server-side and OAuth checks state plus PKCE',asyn
  }finally{globalThis.fetch=fetch;for(const [key,val] of [['GITHUB_CLIENT_ID',env.id],['GITHUB_CLIENT_SECRET',env.secret],['GITHUB_REDIRECT_URI',env.uri]]){if(val===undefined)delete process.env[key!];else process.env[key!]=val}}
 });
 test('GitHub publishing isolates projects, preserves unrelated files and never force-pushes',async()=>{
- const fetch=globalThis.fetch;const input={projectId:randomUUID(),name:'Test app',repository:'owner/test-app',branch:'main',files:[{path:'index.html',content:'<html><head></head><body><h1>App</h1></body></html>'}],sql:'',url:null,key:null};
+ const fetch=globalThis.fetch;const input={projectId:randomUUID(),name:'Test app',repository:'owner/test-app',branch:'main',expectedHead:'old-commit',files:[{path:'index.html',content:'<html><head></head><body><h1>App</h1></body></html>'}],sql:'',url:null,key:null};
  let bound=input.projectId;let unrelated=false;let duplicate=false;const mutations:{url:string;body:any}[]=[];
  globalThis.fetch=async(url,init)=>{const u=String(url);const body=init?.body?JSON.parse(String(init.body)):null;if(init?.method!=='GET'){mutations.push({url:u,body});return Response.json({sha:u.includes('trees')?'new-tree':'new-commit'})}
  if(u.endsWith('/repos/owner/test-app'))return Response.json({permissions:{push:true}});

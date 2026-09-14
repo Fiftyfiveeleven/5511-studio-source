@@ -1,3 +1,4 @@
+import {usageCost} from './model-pricing';
 import {sharedUsageDb,readSharedLedger,writeSharedLedger} from './shared-usage';
 import {createHash,createCipheriv,createDecipheriv,randomBytes} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename,rmdir} from 'node:fs/promises';
@@ -39,9 +40,10 @@ export async function changeLedger<T>(key:string,change:(ledger:Ledger)=>T){
  try{await mkdir(lock)}catch{throw new HttpError(409,'Usage history is busy. Wait a moment before trying again.');}
  try{const file=path.join(dir,'ledger.enc'),data=await load(file,key);const result=change(data);const temp=path.join(dir,'ledger.tmp');await writeFile(temp,seal(data,key),{mode:0o600});await rename(temp,file);return result}finally{await rmdir(lock)}
 }
+export function entryCost(e:StoredEntry){if(e.costUsd!==undefined)return e.costUsd;if(e.usage){try{return usageCost(e.model,e.usage)}catch{return e.usage.total*30/1e6}}return e.reservedUsd??e.reservation*30/1e6;}
 const empty=():TokenUsage=>({input:0,cachedInput:0,output:0,reasoning:0,total:0});
 function sum(entries:StoredEntry[]){return entries.reduce((sum,e)=>{if(e.usage)for(const k of Object.keys(sum) as (keyof TokenUsage)[])sum[k]+=e.usage[k];return sum},empty())}
-export async function usageSummary(key:string):Promise<UsageSummary>{const data=await sharedData(key)??await load(path.join(location(key),'ledger.enc'),key);const recent=data.entries.filter(e=>Date.parse(e.createdAt)>Date.now()-86400000);return {limits:data.limits,entries:data.entries.map(({result,rawOutput,digest,...entry})=>entry).reverse(),today:sum(recent),allTime:sum(data.entries),reserved:recent.filter(e=>!e.usage).reduce((n,e)=>n+e.reservation,0)}}
+export async function usageSummary(key:string):Promise<UsageSummary>{const data=await sharedData(key)??await load(path.join(location(key),'ledger.enc'),key);const recent=data.entries.filter(e=>Date.parse(e.createdAt)>Date.now()-86400000);const month=data.entries.filter(e=>e.createdAt.slice(0,7)===new Date().toISOString().slice(0,7));return {monthUsd:month.filter(e=>!!e.usage).reduce((n,e)=>n+entryCost(e),0),monthReservedUsd:month.filter(e=>!e.usage).reduce((n,e)=>n+entryCost(e),0),limits:{...defaultLimits,...data.limits},entries:data.entries.map(({result,rawOutput,digest,...entry})=>entry).reverse(),today:sum(recent),allTime:sum(data.entries),reserved:recent.filter(e=>!e.usage).reduce((n,e)=>n+e.reservation,0)}}
 export async function beginUsage(key:string,entry:StoredEntry){return changeLedger(key,data=>{
  const previous=data.entries.find(e=>e.id===entry.id);
  if(previous&&previous.digest!==entry.digest)throw new HttpError(409,'This build ID belongs to a different request.');
@@ -54,6 +56,10 @@ export async function beginUsage(key:string,entry:StoredEntry){return changeLedg
  const spent=recent.reduce((n,e)=>n+(e.usage?.total??e.reservation),0);
  if(recent.length>=data.limits.dailyBuilds)throw new HttpError(429,'Your rolling 24-hour build limit has been reached.');
  if(spent+entry.reservation>data.limits.dailyTokens)throw new HttpError(429,'This build would exceed your token budget reservation. Reduce the output limit or adjust your budget in Usage.');
+ const month=data.entries.filter(e=>e.createdAt.slice(0,7)===new Date().toISOString().slice(0,7));
+ if(month.reduce((n,e)=>n+entryCost(e),0)+entryCost(entry)>(data.limits.monthlyUsd??100))throw new HttpError(429,'Monthly dollar budget reached, including pending reservations.');
+ const buildSpent=entry.buildId?data.entries.filter(e=>e.buildId===entry.buildId).reduce((n,e)=>n+entryCost(e),0):0;
+ if(buildSpent+entryCost(entry)>Math.min(data.limits.maxBuildUsd??3,entry.buildBudgetUsd??3))throw new HttpError(429,'This build would exceed its dollar ceiling. Review Usage before increasing it.');
  data.entries.push(entry);return {cached:null,limits:data.limits};
  })}
 export async function recordUsage(key:string,id:string,patch:Partial<StoredEntry>){return changeLedger(key,data=>{const entry=data.entries.find(e=>e.id===id);if(!entry)throw new HttpError(409,'Build record missing.');Object.assign(entry,patch)})}

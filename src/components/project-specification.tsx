@@ -1,0 +1,8 @@
+'use client';
+import {useState} from 'react';
+import {specificationSchema,type ProjectSpecification} from '@/lib/project-memory';
+import type {Project} from '@/lib/types';
+export default function ProjectSpecificationEditor({project,api,onSaved,onClose}:{project:Project;api:(path:string,method?:string,body?:unknown)=>Promise<any>;onSaved:(p:Project)=>void;onClose:()=>void}){
+ const [value,setValue]=useState<ProjectSpecification>(specificationSchema.parse(project.specification??{})),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ return <div className="modal-backdrop"><section className="modal build-workbench" role="dialog" aria-modal="true" aria-label="Project specification"><h2>Project memory</h2><p>These requirements accompany every build. Save accepted decisions here; your latest request can explicitly revise them.</p>{(['purpose','brand','pages','data','decisions'] as const).map(key=><label key={key}>{{purpose:'Purpose & audience',brand:'Brand & design rules',pages:'Pages & required features',data:'Data & permissions',decisions:'Accepted decisions / things to preserve'}[key]}<textarea value={value[key]} maxLength={key==='brand'?2000:3000} onChange={e=>setValue(v=>({...v,[key]:e.target.value}))}/></label>)}{error&&<p role="alert">{error}</p>}<div className="settings-actions"><button className="primary-button" disabled={busy} onClick={async()=>{setBusy(true);try{onSaved(await api('/api/projects/'+project.id,'PATCH',{specification:value}));onClose()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}}>Save project memory</button><button className="subtle-button" disabled={busy} onClick={onClose}>Close</button></div></section></div>;
+}

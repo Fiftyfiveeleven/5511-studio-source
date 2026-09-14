@@ -1,4 +1,4 @@
 export type SourceFile = {path:string;content:string};
 export type Revision = {requestId?:string;usage?:import('./usage-types').TokenUsage|null;model?:string;reused?:boolean;id:string;project_id:string;prompt:string;summary:string;files:SourceFile[];sql:string;created_at:string;tokens:number};
-export type Project = {owner_id?:string;access_role?:'owner'|'editor'|'viewer';id:string;name:string;description:string;created_at:string;updated_at:string;supabase_url:string|null;supabase_key:string|null;vercel_project_id:string|null;deployment_url:string|null;current_revision_id:string|null};
+export type Project = {github_connection?:import('./github-connection').GithubConnection|null;specification?:import('./project-memory').ProjectSpecification;build_plan?:import('./project-memory').BuildPlan|null;owner_id?:string;access_role?:'owner'|'editor'|'viewer';id:string;name:string;description:string;created_at:string;updated_at:string;supabase_url:string|null;supabase_key:string|null;vercel_project_id:string|null;deployment_url:string|null;current_revision_id:string|null};
 export type Configuration = {database:boolean;generation:boolean;deployment:boolean};

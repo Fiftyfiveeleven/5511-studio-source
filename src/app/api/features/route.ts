@@ -1,0 +1,8 @@
+import {z} from 'zod';
+import {NextResponse} from 'next/server';
+import {authorize,failure,readBody,HttpError} from '@/lib/server';
+import {requireSameOrigin} from '@/lib/credentials';
+import {validateFeature} from '@/lib/feature-library';
+export async function GET(request:Request){try{const {db}=await authorize(request);const id=new URL(request.url).searchParams.get('id');const query=db.from('studio_features');const {data,error}=id?await query.select('*').eq('id',z.uuid().parse(id)).single():await query.select('id,name,description,created_at').order('created_at',{ascending:false}).limit(100);if(error)throw new HttpError(id?404:503,id?'Blueprint not found.':'Apply the Phase 2 migration to enable the cloud library.');return NextResponse.json(data);}catch(e){return failure(e)}}
+export async function POST(request:Request){try{requireSameOrigin(request);const {db,user}=await authorize(request);const value=validateFeature(await readBody(request));const {count}=await db.from('studio_features').select('id',{head:true,count:'exact'});if((count??0)>=100)throw new HttpError(400,'Keep at most 100 blueprints in your library.');const {data,error}=await db.from('studio_features').insert({...value,owner_id:user.id}).select().single();if(error)throw new HttpError(409,'Could not save this blueprint. Apply the Phase 2 migration or choose a new name.');return NextResponse.json(data);}catch(e){return failure(e)}}
+export async function DELETE(request:Request){try{requireSameOrigin(request);const {db}=await authorize(request);const {id}=z.object({id:z.uuid()}).parse(await readBody(request));const {error}=await db.from('studio_features').delete().eq('id',id);if(error)throw error;return NextResponse.json({deleted:true});}catch(e){return failure(e)}}

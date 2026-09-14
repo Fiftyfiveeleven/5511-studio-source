@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+test('durable jobs protect credentials, reject stale commits, preserve idempotency and recheck revoked access',async()=>{const db=new PGlite();const owner=randomUUID(),editor=randomUUID(),viewer=randomUUID(),p=randomUUID(),j=randomUUID();try{
+ await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated,service_role;grant execute on function auth.uid() to authenticated;grant select on auth.users to service_role;insert into auth.users values('${owner}','owner@test.example',now()),('${editor}','editor@test.example',now()),('${viewer}','viewer@test.example',now());`);
+ for(const file of ['schema.sql','migrations/20260912_project_access.sql','migrations/20260914175156_phase_one_jobs.sql'])await db.exec(await readFile(new URL('../supabase/'+file,import.meta.url),'utf8'));
+ await db.exec(`grant all on projects,revisions,project_access to service_role;insert into projects(id,owner_id,name) values('${p}','${owner}','Test');insert into project_access(project_id,email,role) values('${p}','editor@test.example','editor'),('${p}','viewer@test.example','viewer');set role service_role;`);
+ const payload={id:j,project_id:p,user_id:editor,plan:{stages:[{id:randomUUID()}]},images:[],runtime:'nextjs',expected_revision:null};await db.query('select enqueue_studio_job($1,$2)',[JSON.stringify(payload),'encrypted-test-only']);
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${viewer}';`);assert.equal((await db.query('select * from studio_build_jobs')).rows.length,1);await assert.rejects(db.query('select * from studio_job_secrets'),/permission denied/);await assert.rejects(db.query(`update studio_build_jobs set status='completed'`),/permission denied/);await assert.rejects(db.query('select enqueue_studio_job($1,$2)',[JSON.stringify(payload),'no']),/permission denied/);
+ await db.exec('set role service_role');const revision=randomUUID();const args=[j,0,null,revision,'Build','Checkpoint',JSON.stringify([{path:'index.html',content:'saved'}]),'',10,'Test'];await db.query('select commit_studio_job($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',args);await db.query('select commit_studio_job($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',args);assert.equal((await db.query('select * from revisions')).rows.length,1);
+ await assert.rejects(db.query('select commit_studio_job($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[j,1,null,randomUUID(),...args.slice(4)]),/Project changed/);
+ await db.query(`delete from project_access where project_id=$1 and role='editor'`,[p]);await assert.rejects(db.query('select commit_studio_job($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[j,1,revision,randomUUID(),...args.slice(4)]),/Editing access removed/);
+ }finally{await db.close()}});

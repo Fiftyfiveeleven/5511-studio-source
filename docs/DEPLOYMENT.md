@@ -1,6 +1,6 @@
 # Host 5511 Studio through GitHub → Vercel
 
-This deploys the Studio editor itself as a **Next.js** app. Repositories published from inside Studio contain generated apps and use the **Other** preset instead.
+This deploys the Studio editor itself as a **Next.js** app. Browser apps published from Studio use **Other**; React/TypeScript apps use **Next.js**.
 
 ## 1. Activate the Studio database
 
@@ -75,3 +75,45 @@ References: [Vercel Git deployments](https://vercel.com/docs/git), [Supabase pri
 Settings → Studio Supabase checks the workspace tables, private bucket configuration, and shared token ledger using read-only requests. Local token tracking is labelled Local storage; a missing server key on Vercel is labelled Setup required. A server key is needed to verify bucket privacy. These checks do not test a signed-in employee's write permissions or consume AI tokens.
 
 If the old “configure durable usage storage” message remains after adding the key, confirm that the GitHub repository contains `src/lib/shared-usage.ts`, then redeploy the latest commit. Set the variable on the same Vercel project and environment as the URL being opened (Production versus Preview). Changing environment settings alone does not update an existing deployment. The updated code names missing variables in the error message.
+
+## September 14 builder update
+
+The project-memory/build-plan migration `supabase/migrations/20260914_build_workspace.sql` is applied to `bauompqruymbnezlgbxm`. It adds metadata columns under existing project access policies and preserves existing projects. For a different Studio database, apply it after the prior migrations.
+
+Upload the updated source archive contents to the existing GitHub repository and let Vercel deploy that commit. No new environment variables are required for these builder features. Refresh Studio after deployment; Project memory, Build plan, Check preview, and monthly dollar limits should appear. The local update does not automatically change an existing Vercel deployment.
+
+## Phase 1: full-stack runtime and background builds
+
+Target supplied by owner: https://5511-studio-source.vercel.app/ . This project is not visible in the currently connected Vercel team's project list; deployment has not been changed by this update.
+
+The migration `supabase/migrations/20260914175156_phase_one_jobs.sql` is applied to the dedicated Studio database. It adds project-scoped job progress, a server-only encrypted authorization table, an atomic enqueue limit, and an atomic revision commit. Authenticated users cannot write job records or read job credentials. Job commits recheck editing access and the expected project revision. The server-only credential table intentionally has no browser RLS policy.
+
+For activation on the Studio Vercel project:
+
+1. Keep the existing Studio Supabase URL, publishable key and server secret configured.
+2. Generate a **new stable secret** with `openssl rand -hex 32`. Set it as `STUDIO_JOB_ENCRYPTION_KEY` (Secret, never NEXT_PUBLIC). Keep it unchanged while jobs are pending; changing it invalidates their encrypted authorization.
+3. Set `STUDIO_SANDBOX_ENABLED=true` (Config). Sandbox uses the deployed project's OIDC credentials. For local development, configure VERCEL_TOKEN, VERCEL_TEAM_ID, VERCEL_PROJECT_ID instead. Existing user publishing-token cookies are not borrowed for background compute.
+4. Push this update to the GitHub repository behind Studio and deploy. The package build command uses webpack; Workflow's `withWorkflow` integration generates the durable step/flow endpoints. Do not protect `/.well-known/workflow/*` with custom middleware that blocks the SDK.
+5. Sign in to the cloud workspace. Settings → Full-stack runtime & background builds should show all checks configured. Create a new project, choose React + TypeScript + server routes in its build plan, then choose Build in background.
+6. Verify a build, close the browser, reopen the project on another signed-in device, and inspect Background builds. This cross-device hosted check remains required after activation; local mocks do not establish deployment health.
+
+No generated code runs on the Studio host. Sandbox code executes as an unprivileged OS user without Studio, OpenAI or GitHub credentials. Only registry.npmjs.org is allowed during app dependency installation, lifecycle scripts are disabled, and external VM egress is denied during compilation/testing. The trusted test runner uses a separate user and browser contexts that block external requests. Previews receive no production database credentials. Live authentication, payment and persistent database workflows require an explicitly configured test environment and separate verification; passing the supplied local acceptance tests does not certify those integrations.
+
+Sandbox compute is **separate from AI budgets**. Limits: 20 enqueued jobs/previews per user per rolling 24 hours, one active job per project, two vCPUs and ten minutes per sandbox session. A staged build can use one VM per stage plus a final test VM. Preview sessions expire rather than renewing automatically. For fast startups, provision a snapshot with the system Chromium libraries, `playwright@1.58.2` under `/vercel/checker`, and Chromium installed, then set STUDIO_SANDBOX_SNAPSHOT. Without it, the test VM installs these trusted dependencies before receiving generated code.
+
+Job OpenAI authorization expires after two hours and its encrypted copy is deleted on completion/failure/cancellation. No long-lived user session token is passed to Workflow. Workflow inputs contain only the job UUID. AI steps disable automatic retries; existing provider request IDs and atomic checkpoint commits protect replay. Unknown provider usage stays reserved. Background compilation/test failures stop with diagnostics; they do not silently spend on repair. A job cancelled during a request may still incur that request's cost, but cannot commit a later result.
+
+Background browser-native builds currently receive source checks; the existing free browser Check preview remains available for interactive checks. Full-stack builds receive compilation and final declarative acceptance tests. Requirements and results are stored in the source/job record. Existing requirement IDs/descriptions cannot silently disappear on refinement. Model-authored assertions should still be reviewed for coverage.
+
+Benchmark: `node --import tsx scripts/benchmark-phase-one.ts` validates the fixed two-page server-form fixture without any provider charge and writes `dist/phase-one-benchmark.json`. Add `--runtime` only after configuring Sandbox to run the isolated browser suite (Vercel compute charges apply). Structural checks explicitly report runtime as NOT RUN. Future versions should use the same fixture and compare pass rate, elapsed time and recorded costs. No live model quality or dollar savings claim is established by this fixture.
+
+
+## Phase 2 activation
+
+1. Replace the Studio repository source with the updated source archive, keeping your existing Vercel project connected to that repository. Push to its production branch.
+2. Apply `supabase/migrations/20260914184120_phase_two_tools.sql` after the existing migrations. **Already applied** to the connected Studio database `bauompqruymbnezlgbxm` on September 14. This adds a private reusable-blueprint table and a non-secret project GitHub connection field. No new environment variables are required for Phase 2 itself.
+3. Keep Phase 1's database, job encryption and Sandbox settings. React runtime previews still require that setup. OpenAI review and GitHub sync use the employee's existing private browser credentials.
+4. After redeploying, open an app: Preview → Edit design / Design review / Features. Publish to GitHub opens the two-way sync panel. Previously selected browser-only repository destinations are suggested for reconnection; pull existing Studio repositories before pushing.
+5. Verify using a dedicated test project and repository: save a direct edit, reopen from another signed-in device, save a blueprint, edit one source file in GitHub, pull/review/save, then push. If GitHub has a branch rule requiring PRs, use a writable development branch; this release does not bypass branch protection.
+
+Hosted GitHub writes, live OpenAI image-review quality, and Vercel Sandbox execution were not exercised with real credentials during implementation. Tests use mocked provider responses and a compiled local Next.js fixture. Do not interpret the automated checks as production activation.

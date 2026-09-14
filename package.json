@@ -4,28 +4,31 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.99.1",
+    "@vercel/sandbox": "3.3.0",
+    "acorn": "^8.18.0",
     "fflate": "0.8.2",
     "lucide-react": "0.577.0",
     "next": "16.2.1",
     "openai": "6.32.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "4.3.6"
+    "workflow": "4.8.8",
+    "zod": "4.3.6",
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@types/node": "22.19.15",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "tsx": "4.21.0",
-    "typescript": "5.9.3"
+    "tsx": "4.21.0"
   },
   "engines": {
     "node": "24.x"

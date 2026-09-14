@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
+import RuntimeSettings from './runtime-settings';
 import CloudWorkspaceSettings from './cloud-workspace-settings';
 import WorkspaceConnectionStatus from './workspace-status';
 import GithubSettings from './github-settings';
@@ -18,6 +19,7 @@ export default function SettingsPage(){
  <section className="settings-card"><h2>Token budget</h2><p>Track each build, set input and output limits, and review failed attempts before retrying.</p><Link className="subtle-button" href="/usage">Open token usage &amp; limits →</Link></section>
  <WorkspaceConnectionStatus/>
  <CloudWorkspaceSettings/>
+ <RuntimeSettings/>
  <div className="optional-heading"><h2>App integrations</h2><p>Add these to the apps you build when you need them.</p></div>
  <section className="settings-card"><div className="settings-card-title"><Database size={27}/><div><h2>Generated app database</h2><p>Optional · Supabase for each app</p></div></div><p>Connect Supabase from an app’s Database tab when you need accounts or shared data. Each app can use a different project.</p><p className="settings-help">Without a cloud workspace account, Studio saves projects and versions in this browser. They remain here after refresh; export your code to keep a backup or move devices.</p></section>
  <GithubSettings/>
