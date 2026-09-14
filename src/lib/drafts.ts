@@ -1,0 +1,5 @@
+import type {ImageAttachment} from './attachments';
+export type Draft={prompt:string;images:ImageAttachment[]};
+function db(){return new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('5511-studio-drafts',1);r.onupgradeneeded=()=>r.result.createObjectStore('drafts');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(new Error('Draft could not be saved in this browser.'))})}
+export async function saveDraft(id:string,draft:Draft){const d=await db();try{await new Promise<void>((resolve,reject)=>{const tx=d.transaction('drafts','readwrite');tx.objectStore('drafts').put(draft,id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(new Error('Draft storage is full.'))})}finally{d.close()}}
+export async function loadDraft(id:string):Promise<Draft>{const d=await db();try{return await new Promise((resolve,reject)=>{const r=d.transaction('drafts').objectStore('drafts').get(id);r.onsuccess=()=>resolve(r.result??{prompt:'',images:[]});r.onerror=()=>reject(r.error)})}finally{d.close()}}

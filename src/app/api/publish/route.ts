@@ -1,0 +1,10 @@
+import {NextResponse} from 'next/server';
+import {z} from 'zod';
+import {credential,requireSameOrigin} from '@/lib/credentials';
+import {validateArtifact,validateConnection,renderPreview} from '@/lib/artifacts';
+import {failure,readBody,HttpError} from '@/lib/server';
+export const maxDuration=60;
+async function vercel(request:Request,path:string,body?:unknown){const key=credential(request,'vercel');if(!key)throw new HttpError(400,'Connect Vercel in Settings when you are ready to publish.');const team=credential(request,'team');const r=await fetch('https://api.vercel.com'+path+(team?'?teamId='+encodeURIComponent(team):''),{method:body?'POST':'GET',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});if(!r.ok)throw new HttpError(502,`Vercel could not complete this request (${r.status}). Check your connection in Settings.`);return r.json();}
+const result=(d:{id:string;url:string;readyState?:string})=>({id:d.id,url:`https://${d.url}`,state:d.readyState??'QUEUED'});
+export async function POST(request:Request){try{requireSameOrigin(request);const input=z.object({id:z.uuid(),files:z.array(z.object({path:z.string(),content:z.string()})),url:z.string().nullable(),key:z.string().nullable()}).parse(await readBody(request));const a=validateArtifact({name:'App',summary:'Publish',files:input.files,sql:''});const c=validateConnection(input.url??'',input.key??'');const d=await vercel(request,'/v13/deployments',{name:`studio-${input.id}`,target:'production',files:[{file:'index.html',data:renderPreview(a.files,c)},{file:'vercel.json',data:JSON.stringify({rewrites:[{source:'/(.*)',destination:'/index.html'}]})}],projectSettings:{framework:null,buildCommand:null,installCommand:null,outputDirectory:null}});return NextResponse.json(result(d))}catch(e){return failure(e)}}
+export async function GET(request:Request){try{const id=z.string().regex(/^dpl_[a-zA-Z0-9]+$/).parse(new URL(request.url).searchParams.get('id'));return NextResponse.json(result(await vercel(request,`/v13/deployments/${id}`)))}catch(e){return failure(e)}}
