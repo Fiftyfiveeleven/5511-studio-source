@@ -24,3 +24,13 @@ For an AI review, upload the current screenshot first; optionally add target ref
 - OpenAI and GitHub provider tests are mocked. No paid OpenAI requests or Vercel Sandbox sessions were used. Real hosted integration remains to be verified after deployment to the owner's actual Studio Vercel project.
 
 Official API references used: [OpenAI images and vision](https://developers.openai.com/api/docs/guides/images-vision), [GitHub refs](https://docs.github.com/en/rest/git/refs), [GitHub trees](https://docs.github.com/en/rest/git/trees), [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).
+
+## Project files
+
+Open **Files** beside Preview to browse the project's saved source by folder. Search filenames or enable **Search inside files** to search contents. Select a file to read, copy, download, or edit it. New file paths can include folders; Rename / move changes the path, and Delete removes an optional file. Update any imports or references after a move. Required entry files cannot be moved or deleted.
+
+**Save version** (or Cmd/Ctrl+S in the source editor) validates the draft and saves an immutable revision through the same browser/cloud permissions and conflict checks as design edits. It uses no AI tokens. Discard restores the saved source. Unsaved edits block leaving the editor; refresh/close prompts the browser's unsaved-change warning. Viewer and example projects are read-only.
+
+The browser manages supported text source files, not arbitrary binary uploads. Import text accepts UTF-8 files at the project root; use Rename / move to place them in supported folders. Existing app limits apply: 80 files, 160,000 characters per file, and 500,000 serialized source characters total. Empty folders are inferred from file paths and are not stored. The Database tab continues to show the separate SQL schema.
+
+Validated: three file-operation tests, production build, and browser create/edit/save, content search, rename/save, delete/discard workflows on an isolated test project.
