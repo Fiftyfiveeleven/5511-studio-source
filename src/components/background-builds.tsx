@@ -1,10 +1,22 @@
 'use client';
 import {useEffect,useState,useRef} from 'react';
 import type {Project,Revision} from '@/lib/types';
+function active(job:any){return ['queued','running'].includes(job.status)}
+function elapsed(created:string){const seconds=Math.max(0,Math.floor((Date.now()-Date.parse(created))/1000));return `${Math.floor(seconds/60)}m ${seconds%60}s`;}
 export default function BackgroundBuilds({project,api,onUpdate}:{project:Project;api:(p:string,m?:string,b?:unknown)=>Promise<any>;onUpdate:(p:Project,r:Revision[])=>void}){
  const update=useRef(onUpdate);update.current=onUpdate;
  const [jobs,setJobs]=useState<any[]>([]),[error,setError]=useState('');
- useEffect(()=>{if(!project.owner_id)return;let stopped=false;let timer:ReturnType<typeof setTimeout>;let version='';async function poll(){try{const d=await api(`/api/projects/${project.id}/jobs`);if(stopped)return;setJobs(d.jobs);setError('');const next=d.jobs.map((j:any)=>j.updated_at+j.status).join();if(next!==version){const fresh=await api('/api/projects/'+project.id);if(!stopped)update.current(fresh.project,fresh.revisions);}version=next;}catch(e){if(!stopped)setError((e as Error).message)}finally{if(!stopped)timer=setTimeout(poll,5000)}}void poll();return()=>{stopped=true;clearTimeout(timer)}},[project.id,project.owner_id]);
- if(!project.owner_id)return null;
- return <section className="background-jobs"><details open><summary>Background builds {jobs.some(j=>j.status==='running')?'· Running':jobs.some(j=>j.status==='queued')?'· Queued':jobs[0]?.status==='failed'?'· Failed':''}</summary>{error&&<p role="alert">{error}</p>}{!jobs.length&&<p>No background builds yet.</p>}{jobs.map(j=><article key={j.id}><b>{j.plan.goal}</b><p>{j.status} · {j.stage}/{j.plan.stages.length} stages saved</p>{j.error&&<p role="alert">{j.error}</p>}{j.report&&<pre>{JSON.stringify(j.report,null,2)}</pre>}{['queued','running'].includes(j.status)&&<button onClick={()=>api(`/api/projects/${project.id}/jobs`,'DELETE').catch(e=>setError(e.message))}>Cancel after current operation</button>}</article>)}</details></section>;
+ useEffect(()=>{setJobs([]);setError('');if(!project.owner_id)return;let stopped=false;let timer:ReturnType<typeof setTimeout>;let version='';async function poll(){try{const d=await api(`/api/projects/${project.id}/jobs`);if(stopped)return;setJobs(d.jobs);setError('');const next=d.jobs.map((j:any)=>j.stage+j.status).join();if(next!==version){const fresh=await api('/api/projects/'+project.id);if(!stopped)update.current(fresh.project,fresh.revisions);}version=next;}catch(e){if(!stopped)setError((e as Error).message)}finally{if(!stopped)timer=setTimeout(poll,5000)}}void poll();return()=>{stopped=true;clearTimeout(timer)}},[project.id,project.owner_id]);
+ if(!project.owner_id||!jobs.length&&!error)return null;
+ const current=jobs.find(active)??jobs[0];
+ return <section className="build-progress" aria-label="Build progress">
+ {error&&<p role="alert">Could not refresh progress: {error}</p>}
+ {current&&<><div className="build-progress-heading"><strong>{active(current)&&<span className="build-activity"/>}{current.status==='queued'?'Preparing your build':current.status==='running'?'Building your app':current.status==='completed'?'Build complete':current.status==='cancelled'?'Build stopped':'Build needs attention'}</strong>{active(current)&&<span>{elapsed(current.created_at)} elapsed</span>}</div>
+ <p role="status">{current.cancel_requested&&active(current)?'Stopping after the current operation…':active(current)?current.progress??'Waiting for the build worker to start…':current.status==='completed'?'Your saved app is ready to review.':current.error??'Your saved stages are preserved.'}</p>
+ <progress aria-label="Stages saved" value={current.stage} max={current.plan.stages.length}/><small>{current.stage} of {current.plan.stages.length} stages saved{active(current)&&current.stage===0?' · The preview appears after the first stage is saved.':''}</small>
+ {active(current)&&<p className="build-progress-help">{current.progress?.startsWith('Designing')?'The AI is generating this stage. Code appears when generation and checks finish. ':''}You can leave this page and return later.</p>}
+ {active(current)&&<button className="subtle-button" disabled={current.cancel_requested} onClick={async()=>{try{await api(`/api/projects/${project.id}/jobs`,'DELETE');setJobs(v=>v.map(j=>active(j)?{...j,cancel_requested:true}:j));}catch(e){setError((e as Error).message)}}}>Stop build</button>}
+ {current.report&&<details><summary>Build checks</summary><pre>{JSON.stringify(current.report,null,2)}</pre></details>}
+ {jobs.length>1&&<details className="build-history"><summary>Previous attempts ({jobs.length-1})</summary>{jobs.filter(j=>j.id!==current.id).map(j=><p key={j.id}>{j.status} · {j.stage}/{j.plan.stages.length} stages saved{j.error&&<> — {j.error}</>}</p>)}</details>}</>}
+ </section>;
 }
