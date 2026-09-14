@@ -25,7 +25,7 @@ export default function SettingsPage(){
  <GithubSettings/>
  <section className="settings-card"><div className="settings-card-title"><Triangle size={27}/><div><h2>Vercel</h2><p>Deploy from GitHub</p></div></div><p>Publish each project to its own GitHub repository, then import that repository into Vercel. Future commits trigger deployments there. Studio does not need your Vercel token.</p><a className="subtle-button" href="https://vercel.com/new" target="_blank" rel="noreferrer">Import a GitHub repository in Vercel ↗</a>{status.deployment&&<button className="subtle-button" disabled={!!busy} onClick={()=>save('vercel',true)}>Remove old Vercel token</button>}</section>
 
- {signedIn&&<section className="settings-card"><h2>Cloud workspace</h2><p>You are signed in. Sign out to use projects saved in this browser.</p><button className="subtle-button" onClick={async()=>{await browserDb()?.auth.signOut();setSignedIn(false);setNotice('Signed out of the cloud workspace.')}}>Sign out</button></section>}
+ {signedIn&&<section className="settings-card"><h2>Cloud workspace</h2><p>You are signed in. Signing out returns you to the login screen.</p><button className="subtle-button" onClick={async()=>{await browserDb()?.auth.signOut();setSignedIn(false);setNotice('Signed out of the cloud workspace.')}}>Sign out</button></section>}
  {error&&<p className="settings-error" role="alert">{error}</p>}{notice&&<p className="settings-notice" role="status">{notice} {status.generation&&<Link href="/">Start building →</Link>}</p>}
  </main>
 }

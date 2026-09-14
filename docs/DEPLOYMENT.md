@@ -117,3 +117,15 @@ Benchmark: `node --import tsx scripts/benchmark-phase-one.ts` validates the fixe
 5. Verify using a dedicated test project and repository: save a direct edit, reopen from another signed-in device, save a blueprint, edit one source file in GitHub, pull/review/save, then push. If GitHub has a branch rule requiring PRs, use a writable development branch; this release does not bypass branch protection.
 
 Hosted GitHub writes, live OpenAI image-review quality, and Vercel Sandbox execution were not exercised with real credentials during implementation. Tests use mocked provider responses and a compiled local Next.js fixture. Do not interpret the automated checks as production activation.
+
+## Required Supabase login
+
+Studio now requires an existing, non-anonymous Supabase Auth email account. There is no public sign-up or guest editor. Configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the **Studio** database before building. Create at least one email/password account in that project's Supabase Authentication → Users screen before deploying this update; employees use their own accounts. Existing project ownership and team roles still determine which projects each user can edit. `STUDIO_ALLOWED_EMAILS`, when set, additionally limits which accounts may enter.
+
+Login exchanges a Supabase access token for an HTTP-only, Secure-on-HTTPS cookie. The server verifies tokens with Supabase Auth; it does not trust unverified session contents. Supabase's browser client refreshes tokens and synchronizes the server cookie. Pages and all Studio API routes require auth; the login/session exchange, static assets, and separately authenticated Workflow runtime endpoints remain reachable. Sign-out clears the Studio session and browser provider keys. Switching accounts also clears provider keys to avoid sharing them on the same browser. Users may need to reconnect OpenAI/GitHub after their first login.
+
+Previously saved browser projects are preserved; a signed-in user can copy them to the cloud using Settings → Cloud workspace. Local and hosted Studio both require authentication. No database migration is needed for this update.
+
+Authentication implementation reference: https://supabase.com/docs/reference/javascript/auth-getuser
+
+If Vercel import reports `Environment variable "VERCEL_TOKEN" is invalid`, remove that entry from the import form. It is not required for GitHub deployments. Hosted Sandbox uses deployment OIDC; explicit VERCEL_TOKEN credentials are for local development only.
