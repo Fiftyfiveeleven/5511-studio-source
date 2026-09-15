@@ -25,10 +25,10 @@ test('focused plans preserve routing prompt, staged plans validate and pricing a
  const p=makeBuildPlan('Make the header blue',false,false);assert.equal(p.stages[0].instruction,'Make the header blue');assert.equal(buildPlanSchema.parse(makeBuildPlan('Build a booking portal',true,true)).stages.length,3);
  assert.equal(usageCost('gpt-5.5',{input:1000000,cachedInput:200000,output:100000,reasoning:50000,total:1100000}),7.1);
 });
-test('monthly and shared build ceilings include earlier stages and unknown reservations',async()=>{
+test('legacy monthly and build ceilings do not block requests; costs remain tracked',async()=>{
  const dir=await mkdtemp(tmpdir()+'/studio-money-');const old=process.env.STUDIO_USAGE_DIR;process.env.STUDIO_USAGE_DIR=dir;
  const key='test-money-only';const buildId=randomUUID();const entry=()=>({id:randomUUID(),projectId:randomUUID(),name:'test',createdAt:new Date().toISOString(),model:'gpt-5.5',status:'running' as const,usage:null,reservation:100,reused:0,digest:randomUUID(),reservedUsd:0.6,buildId,buildBudgetUsd:1});
- try{const first=entry();await beginUsage(key,first);await recordUsage(key,first.id,{status:'uncertain'});await assert.rejects(beginUsage(key,entry()),/dollar ceiling/);await changeLedger(key,l=>{l.limits.monthlyUsd=1});await assert.rejects(beginUsage(key,{...entry(),buildId:randomUUID(),reservedUsd:0.7}),/Monthly dollar/);assert.equal((await usageSummary(key)).monthReservedUsd,0.6);}finally{if(old===undefined)delete process.env.STUDIO_USAGE_DIR;else process.env.STUDIO_USAGE_DIR=old;await rm(dir,{recursive:true,force:true})}
+ try{const first=entry();await beginUsage(key,first);await recordUsage(key,first.id,{status:'uncertain'});const second=entry();await beginUsage(key,second);await recordUsage(key,second.id,{status:'uncertain'});await changeLedger(key,l=>{l.limits.monthlyUsd=1});await beginUsage(key,{...entry(),buildId:randomUUID(),reservedUsd:0.7});assert.equal((await usageSummary(key)).entries.length,3);assert.ok((await usageSummary(key)).monthReservedUsd!>1.8);}finally{if(old===undefined)delete process.env.STUDIO_USAGE_DIR;else process.env.STUDIO_USAGE_DIR=old;await rm(dir,{recursive:true,force:true})}
 });
 test('legacy classic scripts keep inline-handler globals while component imports use modules',()=>{
  const page=renderPreview([{path:'index.html',content:'<button onclick="go()">Go</button><script src="app.js"></script>'},{path:'app.js',content:'function go(){document.body.dataset.clicked="yes"}'}]);

@@ -52,14 +52,7 @@ export async function beginUsage(key:string,entry:StoredEntry){return changeLedg
  if(previous)throw new HttpError(409,previous.status==='running'?'This build is already running.':'This attempt already ran. Check Usage before explicitly starting another attempt.');
  if(data.entries.some(e=>e.status==='running'&&Date.parse(e.createdAt)>Date.now()-360000))throw new HttpError(409,'A build is already running for this API key. No extra request was sent.');
  for(const e of data.entries)if(e.status==='running')e.status='uncertain';
- const recent=data.entries.filter(e=>Date.parse(e.createdAt)>Date.now()-86400000);
- const spent=recent.reduce((n,e)=>n+(e.usage?.total??e.reservation),0);
- if(recent.length>=data.limits.dailyBuilds)throw new HttpError(429,'Your rolling 24-hour build limit has been reached.');
- if(spent+entry.reservation>data.limits.dailyTokens)throw new HttpError(429,`Daily token budget: ${Math.max(0,data.limits.dailyTokens-spent).toLocaleString('en-US')} available; the next stage needs room for up to ${entry.reservation.toLocaleString('en-US')}. Saved stages are preserved. Wait for earlier usage to leave the 24-hour window, or review Usage & limits. No additional AI request was sent.`);
- const month=data.entries.filter(e=>e.createdAt.slice(0,7)===new Date().toISOString().slice(0,7));
- if(month.reduce((n,e)=>n+entryCost(e),0)+entryCost(entry)>(data.limits.monthlyUsd??100))throw new HttpError(429,'Monthly dollar budget reached, including pending reservations.');
- const buildSpent=entry.buildId?data.entries.filter(e=>e.buildId===entry.buildId).reduce((n,e)=>n+entryCost(e),0):0;
- if(buildSpent+entryCost(entry)>Math.min(data.limits.maxBuildUsd??3,entry.buildBudgetUsd??3))throw new HttpError(429,'This build would exceed its dollar ceiling. Review Usage before increasing it.');
+ // Usage is tracked without daily or dollar-based admission limits.
  data.entries.push(entry);return {cached:null,limits:data.limits};
  })}
 export async function recordUsage(key:string,id:string,patch:Partial<StoredEntry>){return changeLedger(key,data=>{const entry=data.entries.find(e=>e.id===id);if(!entry)throw new HttpError(409,'Build record missing.');Object.assign(entry,patch)})}

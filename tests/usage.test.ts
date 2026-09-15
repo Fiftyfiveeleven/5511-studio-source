@@ -25,7 +25,7 @@ test('generation records actual usage, reuses completed calls, caps spend and re
  let summary=await usageSummary(key);assert.equal(summary.today.total,150);assert.equal(summary.today.cachedInput,40);assert.equal(summary.today.output,50);assert.equal(summary.today.reasoning,10);assert.equal(summary.entries[0].reused,2);
  status='incomplete';await assert.rejects(generateApp(key,'A second build','App',[],false,{projectId}),/did not finish/);assert.equal(calls,2);summary=await usageSummary(key);assert.equal(summary.today.total,300);assert.equal(summary.entries[0].status,'failed');
  globalThis.fetch=async()=>{calls++;throw new TypeError('network failure')};await assert.rejects(generateApp(key,'A third build','App',[],false,{projectId}),/Check Usage/);summary=await usageSummary(key);assert.equal(summary.entries[0].status,'uncertain');assert.ok(summary.reserved>0);
- await changeLedger(key,d=>{d.limits.dailyTokens=1000});const before=calls;await assert.rejects(generateApp(key,'Over budget','App',[],false,{projectId}),/budget/);assert.equal(calls,before);
+ await changeLedger(key,d=>{d.limits.dailyTokens=1000});const before=calls;await assert.rejects(generateApp(key,'Over budget','App',[],false,{projectId}),/Check Usage/);assert.equal(calls,before+1);
  const sub=(await readdir(dir))[0];const bytes=await readFile(path.join(dir,sub,'ledger.enc'));assert.ok(!bytes.includes(Buffer.from(key)));assert.ok(!bytes.includes(Buffer.from('Test app')));
  }finally{globalThis.fetch=original;if(previous===undefined)delete process.env.STUDIO_USAGE_DIR;else process.env.STUDIO_USAGE_DIR=previous;await rm(dir,{recursive:true,force:true})}
 });
