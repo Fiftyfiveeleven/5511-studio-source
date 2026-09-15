@@ -1,0 +1,8 @@
+'use client';
+import {useEffect,useState} from 'react';
+const lines=['Negotiating with the pixels.','Convincing the divs to stay in line.','One tiny crew. Alarmingly big ambitions.','Measuring twice. Moving it one pixel anyway.','The pixels have requested a coffee break. Denied.'];
+export default function BuildTheater({phase='Preparing your preview',failed=false}:{phase?:string;failed?:boolean}){
+ const [beat,setBeat]=useState(0),[paused,setPaused]=useState(false);
+ useEffect(()=>{if(paused||failed||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;const timer=setInterval(()=>setBeat(b=>b+1),6500);return()=>clearInterval(timer)},[paused,failed]);
+ return <div className={`build-theater ${paused||failed?'theater-paused':''}`}><div className="pixel-workshop" aria-hidden="true"><div className="workshop-blueprint"><i/><i/><i/><i/></div><div className="pixel-crane"><span>＋</span></div><div className="pixel-worker worker-one"><b>▰</b><span>• •</span><i/></div><div className="pixel-worker worker-two"><b>▰</b><span>• •</span><i/></div><div className="workshop-floor"/><span className="workshop-sign">PIXEL UNION · LOCAL 5511</span></div><p className="theater-eyebrow">{failed?'CREW ON STANDBY':'SMALL CREW. BIG IDEAS.'}</p><h2>{failed?'The crew hit a snag.':lines[beat%lines.length]}</h2><p className="theater-phase" role="status">{failed?'Preview paused. See the error above and use Retry preview.':phase}</p><p className="theater-note">{failed?'Your saved work is still here.':'Your app will appear here when it’s ready. This animation is just for fun—not a progress estimate.'}</p>{!failed&&<button className="subtle-button" onClick={()=>setPaused(p=>!p)}>{paused?'Resume animation':'Pause animation'}</button>}</div>;
+}
