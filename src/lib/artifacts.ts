@@ -4,7 +4,7 @@ import {rewriteModule,moduleReferences} from './source-modules';
 import { z } from 'zod';
 import type { SourceFile } from './types';
 export const artifactSchema=z.object({name:z.string().min(1).max(80),summary:z.string().min(1).max(4000),files:z.array(z.object({path:sourcePathSchema,content:z.string().max(160000)})).min(1).max(80),sql:z.string().max(50000)});
-export function validateArtifact(value:unknown){const result=artifactSchema.parse(value);const paths=result.files.map(f=>f.path);if((!isFullstack(result.files)&&!paths.includes('index.html'))||new Set(paths).size!==paths.length)throw new Error('Output must include one index.html and no duplicate files.');if(JSON.stringify(result.files).length>500000)throw new Error('Project source exceeds 500,000 characters.');if(isFullstack(result.files))validateFullstack(result.files);return result;}
+export function validateArtifact(value:unknown){const result=artifactSchema.parse(value);const paths=result.files.map(f=>f.path);if((!isFullstack(result.files)&&!paths.includes('index.html'))||new Set(paths).size!==paths.length)throw new Error('Output must include one index.html and no duplicate files.');if(JSON.stringify(result.files.filter(f=>!/^lib\/studio-(?:assets|image-[a-f0-9]{16}(?:-\d+)?)\.[jt]s$/.test(f.path))).length>500000||JSON.stringify(result.files).length>1800000)throw new Error('Project exceeds the source or attached-image storage limit. Remove unused images or reduce source size.');if(isFullstack(result.files))validateFullstack(result.files);return result;}
 export function validateConnection(url:string,key:string){
  if(!url&&!key)return {url:null,key:null};
  const parsed=new URL(url);

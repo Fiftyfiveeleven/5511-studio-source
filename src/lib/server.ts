@@ -13,6 +13,6 @@ export async function authorize(request:Request){
  if(!accountAllowed(data.user))throw new HttpError(403,'This account does not have access to Studio.');
  return {db,user:data.user};
 }
-export async function readBody(request:Request,maxLength=600000){const text=await request.text();if(text.length>maxLength)throw new HttpError(413,'Request is too large.');try{return JSON.parse(text)}catch{throw new HttpError(400,'Invalid request.')}}
+export async function readBody(request:Request,maxLength=2000000){const text=await request.text();if(text.length>maxLength)throw new HttpError(413,'Request is too large.');try{return JSON.parse(text)}catch{throw new HttpError(400,'Invalid request.')}}
 export function failure(error:unknown){if(error instanceof HttpError)return NextResponse.json({error:error.message},{status:error.status});if(error instanceof Error&&error.name==='ZodError')return NextResponse.json({error:'Please check your input.'},{status:400});console.error('Studio request failed',error instanceof Error?error.name:'Unknown error');return NextResponse.json({error:'The request could not be completed. Please try again.'},{status:500});}
 export async function ownedProject(db:Awaited<ReturnType<typeof authorize>>['db'],id:string){const {data,error}=await db.from('projects').select('*').eq('id',id).single();if(error||!data)throw new HttpError(404,'Project not found.');return data;}

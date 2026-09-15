@@ -11,7 +11,7 @@ export function revisionBundle(project:Project,revision:Revision){if(revision.pr
 export async function backupRevision(db:SupabaseClient,project:Project,revision:Revision):Promise<StorageResult>{
  try{
   const body=revisionBundle(project,revision);
-  if(Buffer.byteLength(body)>1000000)throw new Error('Backup too large');
+  if(Buffer.byteLength(body)>3000000)throw new Error('Backup too large');
   const {error}=await db.storage.from(PROJECT_BUCKET).upload(revisionKey(project.id,revision.id),body,{contentType:'application/json',upsert:false});
   if(error){
    // Immutable objects: an earlier successful upload is reusable only if its contents match.
@@ -31,7 +31,7 @@ export async function hasBackup(db:SupabaseClient,projectId:string,revisionId:st
 export async function readBackup(db:SupabaseClient,projectId:string,revisionId:string){
  const {data,error}=await db.storage.from(PROJECT_BUCKET).download(revisionKey(projectId,revisionId));
  if(error||!data)throw new Error('Saved storage version is unavailable.');
- if(data.size>1000000)throw new Error('Backup exceeds the size limit.');
+ if(data.size>3000000)throw new Error('Backup exceeds the size limit.');
  const bundle=z.object({format:z.literal('5511-project-version-v1'),project:z.object({id:z.uuid(),name:z.string().min(1).max(80)}),revision:z.object({id:z.uuid(),project_id:z.uuid(),files:artifactSchema.shape.files,sql:z.string().max(50000)})}).parse(JSON.parse(await data.text()));
  if(bundle.project.id!==projectId||bundle.revision.project_id!==projectId||bundle.revision.id!==revisionId)throw new Error('Backup does not match the requested project and version.');
  validateArtifact({name:bundle.project.name,summary:'Restored backup',files:bundle.revision.files,sql:bundle.revision.sql});return bundle.revision;
