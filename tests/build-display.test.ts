@@ -11,3 +11,7 @@ test('failed checks or preview errors never report completion and a next stage r
  assert.match(buildDisplay({active:false,saved:true,preview:'error'}).label,/needs attention/);
  assert.equal(buildDisplay({active:true,saved:true,progress:'Designing and writing code · Features'}).label,'Updating your app');
 });
+test('saved changes with a check warning still wait for the new preview without claiming a failed build',()=>{
+ const pending=buildDisplay({active:false,saved:true,failed:true,warning:true,preview:'loading'});assert.match(pending.label,/Updating preview/);
+ const loaded=buildDisplay({active:false,saved:true,failed:true,warning:true,preview:'ready'});assert.match(loaded.label,/Check warning/);assert.equal(loaded.ready,false);
+});

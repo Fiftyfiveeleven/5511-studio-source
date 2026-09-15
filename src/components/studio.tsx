@@ -1,5 +1,5 @@
 'use client';
-import {buildDisplay,type PreviewState} from '@/lib/build-display';
+import {buildDisplay,savedWithCheckWarning,type PreviewState} from '@/lib/build-display';
 import dynamic from 'next/dynamic';
 const ProjectFiles=dynamic(()=>import('./project-files'));
 const DesignInspector=dynamic(()=>import('./design-inspector'));
@@ -54,7 +54,7 @@ export default function Studio({configuration:initialConfiguration}: {configurat
  const current=revisions.find(r=>r.id===project?.current_revision_id)??null;
  const currentJob=buildStatus?.projectId===project?.id?buildStatus?.job:null;
  const displayedPreview:PreviewState|undefined=current&&isFullstack(current.files)?previewState?.projectId===project?.id&&previewState?.revisionId===current.id?previewState.state:'loading':undefined;
- const completion=buildDisplay({active:busy||jobActive||submitting,progress:currentJob?.progress,saved:jobActive?!!currentJob?.stage:!!current,failed:currentJob?.status==='failed'&&currentJob?.expected_revision===current?.id,preview:displayedPreview});
+ const completion=buildDisplay({active:busy||jobActive||submitting,progress:currentJob?.progress,saved:jobActive?!!currentJob?.stage:!!current,failed:currentJob?.status==='failed'&&currentJob?.expected_revision===current?.id,warning:savedWithCheckWarning(currentJob)&&currentJob?.expected_revision===current?.id,preview:displayedPreview});
  const example=project?.id==='example';
  const readOnly=project?.access_role==='viewer';
  const designFiles=designOpen?designHistory[designIndex]??current?.files:current?.files;
