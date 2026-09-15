@@ -21,10 +21,10 @@ export async function checkRuntime(files:SourceFile[],runTests:boolean,create=Sa
   await app.writeFiles(previewFiles.map(f=>({path:cwd+'/'+f.path,content:Buffer.from(f.content)})));
   await appCommand('npm',['install','--ignore-scripts','--no-audit','--no-fund']);
   await sandbox.updateNetworkPolicy('deny-all');
-  await appCommand('node',['node_modules/next/dist/bin/next','build']);
+  if(!preview)await appCommand('node',['node_modules/next/dist/bin/next','build']);
   if(!runTests&&!preview)return {compiled:true,requirements:[],errors:[]};
   if(runTests)await sandbox.writeFiles([{path:'/vercel/checker/runner.cjs',content:Buffer.from(testRunner)},{path:'/vercel/checker/tests.json',content:Buffer.from(JSON.stringify(spec))}]);
-  await app.runCommand({cwd,env:{NEXT_TELEMETRY_DISABLED:'1'},cmd:'node',args:['node_modules/next/dist/bin/next','start','--hostname','0.0.0.0','--port','3000'],detached:true});
+  await app.runCommand({cwd,env:{NEXT_TELEMETRY_DISABLED:'1'},cmd:'node',args:['node_modules/next/dist/bin/next',preview?'dev':'start','--hostname','0.0.0.0','--port','3000'],detached:true});
   await command('node',['-e',"(async()=>{for(let i=0;i<60;i++){try{await fetch('http://127.0.0.1:3000');return}catch{}await new Promise(r=>setTimeout(r,500))}process.exit(1)})()"],40000);
   if(preview){keepAlive=true;return {compiled:true,requirements:[],errors:[],previewUrl:sandbox.domain(3000),expiresAt:sandbox.expiresAt?.toISOString()??new Date(Date.now()+600000).toISOString()};}
   await command('node',['/vercel/checker/runner.cjs'],180000);

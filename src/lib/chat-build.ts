@@ -6,7 +6,7 @@ export async function submitChatBuild(project:Project,current:Revision|null,prom
  const runtime=!current||isFullstack(current.files)?'nextjs':'browser';
  const plan=makeBuildPlan(prompt,!current,!current);
  plan.baseRevision=current?.id??null;
- const quote=await api('/api/estimate','POST',{prompt:plan.stages[0].instruction,name:project.name,files:current?.files??fullstackTemplate(),previousSql:current?.sql??'',connected:!!project.supabase_url,specification:project.specification,images});
+ const quote=await api('/api/estimate','POST',{prompt:plan.stages[0].instruction,name:project.name,files:current?.files??fullstackTemplate(),previousSql:current?.sql??'',previousTurn:current?{prompt:(current.prompt??'').slice(0,6000),summary:(current.summary??'').slice(0,10000)}:undefined,connected:!!project.supabase_url,specification:project.specification,images});
  if(quote.blockedReason)throw new Error(quote.blockedReason);
  plan.budgetUsd=Math.min(quote.maxBuildUsd,quote.remainingMonthUsd);
  if(!Number.isFinite(plan.budgetUsd)||plan.budgetUsd<0.1||quote.reservedUsd>plan.budgetUsd)throw new Error('This change exceeds your saved spending limit. Review Usage & limits; no AI request was sent.');
