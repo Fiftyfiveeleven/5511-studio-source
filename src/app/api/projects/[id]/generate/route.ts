@@ -1,3 +1,4 @@
+import {projectImageContext} from '@/lib/project-images';
 import {isFullstack} from '@/lib/fullstack-project';
 import {backupRevision} from '@/lib/project-storage';
 import {requireEditor} from '@/lib/project-access';
@@ -18,7 +19,8 @@ export async function POST(request:Request,ctx:{params:Promise<{id:string}>}){
   cleanup=async()=>{await db.rpc('fail_generation',{p_run:run})};
   const {data:previous}=project.current_revision_id?await db.from('revisions').select('files,prompt,summary,sql').eq('id',project.current_revision_id).single():{data:null};
   if(isFullstack(previous?.files??[]))throw new HttpError(400,'Use background builds for this Next.js application.');
-  const artifact=await generateApp(apiKey,prompt,project.name,previous?.files??[],!!project.supabase_url,{requestId,projectId:id,previousSql:previous?.sql??'',images,previousTurn:previous?{prompt:previous.prompt??'',summary:previous.summary??''}:undefined,specification:project.specification,buildId,budgetUsd});
+  const library=await projectImageContext(db,id,prompt,images);
+  const artifact=await generateApp(apiKey,prompt,project.name,previous?.files??[],!!project.supabase_url,{requestId,projectId:id,previousSql:previous?.sql??'',...library,previousTurn:previous?{prompt:previous.prompt??'',summary:previous.summary??''}:undefined,specification:project.specification,buildId,budgetUsd});
   const {data,error}=await db.rpc('finish_generation',{p_run:run,p_prompt:prompt,p_summary:artifact.summary,p_files:artifact.files,p_sql:artifact.sql,p_tokens:artifact.tokens,p_name:artifact.name,p_expected_revision:project.current_revision_id});if(error)throw error;
   cleanup=undefined;
   if(project.build_plan && project.build_plan.id===buildId){const plan={...project.build_plan,stages:project.build_plan.stages.map((s:any)=>s.id===requestId?{...s,status:'saved',revisionId:data.id}:s)};await db.from('projects').update({build_plan:plan}).eq('id',id).eq('current_revision_id',data.id);}

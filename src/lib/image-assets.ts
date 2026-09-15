@@ -11,7 +11,7 @@ export function attachAssets(files:SourceFile[],images:ImageAttachment[]){
  const result=new Map(files.map(f=>[f.path,f]));const catalog=assetCatalog(files);
  for(const image of images.filter(i=>i.useAs!=='reference')){
   const hash=createHash('sha256').update(image.dataUrl).digest('hex').slice(0,16),symbol='image_'+hash;
-  if(catalog.some(a=>a.symbol===symbol))continue;
+  const existing=catalog.find(a=>a.symbol===symbol);if(existing){existing.name=image.name;continue;}
   const chunks=image.dataUrl.match(/.{1,100000}/g)!;
   chunks.forEach((chunk,i)=>result.set(`lib/studio-image-${hash}-${i}.${ext}`,{path:`lib/studio-image-${hash}-${i}.${ext}`,content:'export default '+JSON.stringify(chunk)+';'}));
   result.set(`lib/studio-image-${hash}.${ext}`,{path:`lib/studio-image-${hash}.${ext}`,content:chunks.map((_,i)=>`import p${i} from './studio-image-${hash}-${i}${suffix}';`).join('\n')+'\nexport default '+chunks.map((_,i)=>'p'+i).join('+')+';'});

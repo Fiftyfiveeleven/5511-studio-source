@@ -15,6 +15,7 @@ test('worker saves staged progress, replays without extra AI calls, and stops ca
  if(resource==='studio_usage_ledgers'){if(method==='GET')return Response.json(ledger);if(method==='POST'){ledger=body;return new Response(null,{status:201})}ledger={...ledger,...body};return Response.json([{id:ledger.id}]);}
  if(resource==='studio_build_jobs'){if(method==='GET')return Response.json({...job});Object.assign(job,body);return new Response(null,{status:204});}
  if(resource==='studio_job_secrets'){if(method==='DELETE'){secret=null;return new Response(null,{status:204})}return Response.json(secret);}
+ if(resource==='studio_project_images')return Response.json([]);
  if(resource==='projects')return Response.json({...project});
  if(resource==='revisions')return Response.json(revisions.get(url.searchParams.get('id')!.slice(3)));
  if(resource==='commit_studio_job'){assert.equal(body.p_expected,project.current_revision_id);const r={id:body.p_revision,files:body.p_files,sql:body.p_sql};revisions.set(r.id,r);project.current_revision_id=r.id;job.expected_revision=r.id;job.stage++;return Response.json(r.id);}

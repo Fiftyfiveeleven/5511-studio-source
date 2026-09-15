@@ -1,3 +1,4 @@
+import {projectImageContext} from '@/lib/project-images';
 import {loadJob,assertJobAccess,jobsDb,openJobCredential,finishJob,jobProgress} from '@/lib/job-store';
 import {recordUsage} from '@/lib/usage-store';
 import {generateApp} from '@/lib/generate';
@@ -19,7 +20,8 @@ async function buildStage(id:string,index:number){
  const apiKey=openJobCredential(secret.ciphertext);const {data:previous}=j.expected_revision?await db.from('revisions').select('*').eq('id',j.expected_revision).single():{data:null};
  const files=previous?.files??(j.runtime==='nextjs'?fullstackTemplate():[]);const stage=j.plan.stages[index];
  await db.from('studio_build_jobs').update({status:'running',progress:`Designing and writing code · ${stage.title}`,updated_at:new Date().toISOString()}).eq('id',id);
- const artifact=await generateApp(apiKey,stage.instruction,p.name,files,!!p.supabase_url,{requestId:stage.id,projectId:p.id,images:j.images,previousTurn:previous?{prompt:previous.prompt??'',summary:previous.summary??''}:undefined,specification:p.specification,previousSql:previous?.sql??'',buildId:id,budgetUsd:j.plan.budgetUsd});
+ const library=await projectImageContext(db,p.id,stage.instruction+' '+j.plan.goal,j.images);
+ const artifact=await generateApp(apiKey,stage.instruction,p.name,files,!!p.supabase_url,{requestId:stage.id,projectId:p.id,...library,previousTurn:previous?{prompt:previous.prompt??'',summary:previous.summary??''}:undefined,specification:p.specification,previousSql:previous?.sql??'',buildId:id,budgetUsd:j.plan.budgetUsd});
  if(isFullstack(artifact.files)){await jobProgress(id,`Compiling and checking · ${stage.title}`);const report=await checkRuntime(artifact.files,false);if(!report.compiled){await recordUsage(apiKey,(artifact as {requestId?:string}).requestId??stage.id,{status:'failed',error:('Runtime compilation failed: '+report.errors.join('; ')).slice(0,2000)});throw new Error('Runtime compilation failed: '+report.errors.join('; '));}}
  const latest=await loadJob(id);await assertJobAccess(latest);if(latest.cancel_requested){await finishJob(id,'cancelled');return false;}
  await jobProgress(id,`Saving checkpoint · ${stage.title}`);

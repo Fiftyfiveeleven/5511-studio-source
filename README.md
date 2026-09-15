@@ -82,3 +82,11 @@ Activation requires the server settings described in [the deployment guide](docs
 - **GitHub sync:** per-project repository/branch, immutable commit reads, three-way file conflict review, safe managed-file deletions and no force push. Unrelated files are preserved. Branch protection may reject direct pushes; this release does not create pull requests or support line-by-line merges.
 
 The Phase 2 migration is applied to Studio's connected Supabase project. See [Phase 2 usage and verification](docs/PHASE_TWO.md) and [deployment instructions](docs/DEPLOYMENT.md). Production activation still requires uploading the updated source to the owner's actual GitHub repository and redeploying its Vercel project.
+
+## Project image library
+
+Use **Create images / Library** beside the chat composer. Enter a unique label and prompt, choose a shape and quality, and generate with `gpt-image-2.5-sunburst` using Studio's connected OpenAI API key. Each successful result is saved to the project's private image library; multiple images can be created before returning to chat. **Use in chat** inserts its label into your request. Labels can be renamed and originals downloaded. Closing the dialog does not stop its in-flight request; keep Studio open until it saves, or reopen the library to check its result. Generation is not automatically retried.
+
+Owners and editors may create/rename; project viewers may browse and download. Originals are retained alongside smaller WebP copies for app builds. Builds load relevant labels (up to three image inputs per request) and preserve the exact prepared assets in saved source, so follow-up requests do not require re-uploading. Requests with explicit labels are the most reliable; semantic image selection uses a local label-matching heuristic. The gallery loads eight images per page and searches loaded entries. The builder's library index currently includes the latest 100 ready images.
+
+Apply the `project_image_library` and `restrict_image_library_grants` migrations for new Studio installations. Generation costs are recorded from returned image-token usage. API model access remains subject to the connected account. Provider tests use mocked responses; no paid generation is run by the test suite.
