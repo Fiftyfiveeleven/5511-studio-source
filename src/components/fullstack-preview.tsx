@@ -7,7 +7,7 @@ export default function FullstackPreview({projectId,revisionId,building=false,ap
  const [preview,setPreview]=useState<any>(()=>{const saved=sessions.get(projectId);return saved&&Date.parse(saved.expiresAt)>Date.now()+30000?saved:null}),[busy,setBusy]=useState(false),[error,setError]=useState('');const frame=useRef<HTMLIFrameElement>(null),callbacks=useRef({onSelect,onAudit});callbacks.current={onSelect,onAudit};
  const apiRef=useRef(api);apiRef.current=api;const attempt=useRef(preview?.revisionId??'');const launching=useRef(false);
  async function openPreview(){if(launching.current||building)return;launching.current=true;attempt.current=revisionId;setBusy(true);setError('');try{const next=await apiRef.current(`/api/projects/${projectId}/preview`,'POST',{});const saved={...next,revisionId};sessions.set(projectId,saved);setPreview(saved);}catch(e){setError((e as Error).message)}finally{launching.current=false;setBusy(false)}}
- useEffect(()=>{if(building){attempt.current='';return;}if(!building&&!busy&&attempt.current!==revisionId)void openPreview();},[revisionId,building,busy]);
+ useEffect(()=>{if(building)return;if(!building&&!busy&&attempt.current!==revisionId)void openPreview();},[revisionId,building,busy]);
  useEffect(()=>{if(!preview||building)return;const delay=Math.max(1000,Date.parse(preview.expiresAt)-Date.now()-30000);const timer=setTimeout(()=>{attempt.current='';void openPreview();},delay);return()=>clearTimeout(timer)},[preview,building]);
  function send(action:string){if(preview)frame.current?.contentWindow?.postMessage({channel:preview.designChannel,action,enabled:selecting},new URL(preview.previewUrl).origin);}
  useEffect(()=>{send('select-mode')},[selecting,preview]);useEffect(()=>{if(auditRequest)send('audit')},[auditRequest]);

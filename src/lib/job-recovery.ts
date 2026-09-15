@@ -20,7 +20,7 @@ export async function reconcileProjectJobs(projectId:string, readStatus=(id:stri
 }
 
 export function enqueueError(error:{code?:string;message?:string}){
- if(error.code==='23505')return {status:409,message:'This project already has an active background build. Open Background builds to see its progress.'};
+ if(error.code==='23505')return {status:409,message:'This project is already building. Its progress appears above the chat.'};
  if(error.message?.includes('Background job limit reached'))return {status:429,message:'The limit of 20 background jobs in 24 hours was reached. Try again after an earlier job leaves that window.'};
  return {status:503,message:'Background job storage is unavailable. Check the Studio Supabase connection and background job migration.'};
 }
